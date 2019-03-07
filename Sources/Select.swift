@@ -7,6 +7,7 @@
 //
 
 import StORM
+import Foundation
 import PerfectLogger
 
 /// Provides select functions as an extension to the main class.
@@ -92,7 +93,14 @@ extension PostgresStORM {
 		var clauseOrder = ""
 
 		if columns.count > 0 {
-			clauseSelectList = "\""+columns.joined(separator: "\",\"")+"\""
+            clauseSelectList = columns.map { column -> String in
+                let k = column.split(".")
+                if k.count == 2 {
+                    return "\(k[0]).\"\(k[1])\""
+                }
+                return k[0]
+            }.joined(separator: ",")
+			//clauseSelectList = "\""+columns.joined(separator: "\",\"")+"\""
 		} else {
 			var keys = [String]()
 			for i in cols() {
@@ -150,5 +158,24 @@ extension PostgresStORM {
 			throw error
 		}
 	}
+    
+    /// 事务处理
+    ///
+    /// - Parameter closure: 数据库操作
+    /// - Returns: 返回结果
+    /// - Throws: 抛出异常
+    public static func doWithTransaction<T>(closure: () throws -> T) throws -> T {
+        let thisConnection = PostgresConnect(
+            host:        PostgresConnector.host,
+            username:    PostgresConnector.username,
+            password:    PostgresConnector.password,
+            database:    PostgresConnector.database,
+            port:        PostgresConnector.port
+        )
+        thisConnection.open()
+        let result = try thisConnection.server.doWithTransaction(closure: closure)
+        thisConnection.server.close()
+        return result
+    }
 
 }
